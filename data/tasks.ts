@@ -38,7 +38,7 @@ export const TASKS: Task[] = [
       '¿Puede explicar, a partir de los gestos, los sentimientos y las emociones que están viviendo estas personas?',
       '¿Qué cree que va a suceder después? ¿Cómo va a continuar la escena?'
     ],
-    imageUrl: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&q=80', // Generic emotional group
+    imageUrl: 'https://i.ibb.co/tPwYnq3C/image.png', // Generic emotional group
     examinerNotes: 'Preguntar si ha vivido una situación similar o cómo reaccionaría ante malas noticias.',
     prepTimeSeconds: 120,
     speakTimeSeconds: 180
