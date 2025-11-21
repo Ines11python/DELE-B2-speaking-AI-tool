@@ -1,0 +1,7 @@
+{
+  "name": "DELE B2 Prep AI",
+  "description": "An AI-powered exam preparation tool for Spanish DELE B2 Speaking tests, featuring mock exams, automated transcription, and AI grading.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
