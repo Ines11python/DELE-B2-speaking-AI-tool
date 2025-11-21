@@ -6,7 +6,7 @@ import { FaArrowRight, FaBookOpen, FaComments, FaCamera, FaChevronDown, FaChevro
 export const Home: React.FC = () => {
   const navigate = useNavigate();
 
-  // ⭐ 1) 初始值从 localStorage 读取
+  // Initialize state from localStorage if available, default to 'exam-1'
   const [expandedExam, setExpandedExam] = useState<string | null>(() => {
     return localStorage.getItem("lastExpandedExam") || "exam-1";
   });
@@ -30,13 +30,15 @@ export const Home: React.FC = () => {
     };
   });
 
-  // ⭐ 2) 当用户展开某个 exam 时，顺便保存到 localStorage
+  // Toggle exam visibility and save preference to localStorage
   const toggleExam = (id: string) => {
     const newState = expandedExam === id ? null : id;
     setExpandedExam(newState);
 
     if (newState) {
       localStorage.setItem("lastExpandedExam", newState);
+    } else {
+      localStorage.removeItem("lastExpandedExam");
     }
   };
 

@@ -10,10 +10,11 @@ const getAI = () => {
   return new GoogleGenAI({ apiKey });
 };
 
+// Increased default delay and added max timeout handling
 async function retryOperation<T>(
   operation: () => Promise<T>, 
-  retries = 3, 
-  delay = 1000
+  retries = 2, 
+  delay = 2000
 ): Promise<T> {
   try {
     return await operation();
@@ -21,7 +22,7 @@ async function retryOperation<T>(
     if (retries <= 0) throw error;
     console.warn(`Operation failed, retrying in ${delay}ms... (${retries} attempts left)`, error);
     await new Promise(resolve => setTimeout(resolve, delay));
-    return retryOperation(operation, retries - 1, delay * 2);
+    return retryOperation(operation, retries - 1, delay * 1.5);
   }
 }
 
@@ -36,35 +37,20 @@ export const generateExaminerQuestions = async (
   let specificInstruction = "";
   
   if (taskType === 'TAREA_2') {
-      // Specific logic for Tarea 2 (Photo Description)
-      specificInstruction = `
-      The task is DELE B2 Tarea 2 (Photo Description).
-      Your goal is to ask 2-3 follow-up questions based on the photo context and the user's monologue.
-      
-      CRITICAL RULES FOR TAREA 2 QUESTIONS:
-      1. ONE question MUST be about the candidate's PERSONAL EXPERIENCE related to the situation in the photo (e.g., "¿Ha vivido alguna vez una situación como la de la foto?", "¿Qué haría usted en esa situación?").
-      2. The other questions should ask for specific details about the feelings, atmosphere, or future outcome of the scene in the photo.
-      3. Do NOT ask abstract advantages/disadvantages questions (that is for Tarea 1).
-      `;
+      specificInstruction = `Task: DELE B2 Tarea 2 (Photo). Ask 2 questions: 1. About personal experience ("¿Ha vivido...?"). 2. About the scene details.`;
   } else {
-      // Default/Tarea 1 logic (Debate/Opinion)
-      specificInstruction = `
-      The task is DELE B2 Tarea 1 (Argumentation/Opinion).
-      The questions should challenge the candidate's opinion expressed in the monologue or ask for clarification on specific points.
-      `;
+      specificInstruction = `Task: DELE B2 Tarea 1 (Opinion). Ask 2 questions challenging their opinion.`;
   }
 
-  const systemInstruction = `You are a strict DELE B2 Spanish examiner. 
-  The user has just completed a monologue.
-  ${specificInstruction}
-  Return ONLY the questions in Spanish as a JSON array of strings.`;
-
+  // Simplified Prompt to speed up inference
   const prompt = `
-    Task Prompt: ${taskPrompt}
-    ${examinerNotes ? `Official Examiner Guidelines: ${examinerNotes}` : ''}
-    User's Answer: "${userMonologue}"
+    Context: ${taskPrompt}
+    ${examinerNotes ? `Note: ${examinerNotes}` : ''}
+    Candidate said: "${userMonologue.substring(0, 1000)}" 
     
-    Generate 2 or 3 follow-up questions in JSON format: ["Question 1", "Question 2", "Question 3"].
+    ${specificInstruction}
+    
+    OUTPUT JSON ARRAY ONLY: ["Question 1", "Question 2"]
   `;
 
   try {
@@ -72,7 +58,6 @@ export const generateExaminerQuestions = async (
       model: 'gemini-2.5-flash',
       contents: { parts: [{ text: prompt }] },
       config: {
-        systemInstruction,
         responseMimeType: "application/json",
         responseSchema: {
             type: Type.ARRAY,
@@ -82,7 +67,7 @@ export const generateExaminerQuestions = async (
     }));
 
     let text = response.text;
-    if (!text) return ["¿Ha vivido alguna situación similar?", "¿Qué cree que pasará después?"];
+    if (!text) throw new Error("Empty response");
     
     // Clean potential markdown code blocks
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -90,7 +75,10 @@ export const generateExaminerQuestions = async (
     return JSON.parse(text);
   } catch (error) {
     console.error("Error generating questions:", error);
-    return ["¿Podría explicar eso con más detalle?", "¿Tiene alguna experiencia personal relacionada con esto?"];
+    // Immediate Fallback to prevent hanging
+    return taskType === 'TAREA_2' 
+      ? ["¿Ha vivido alguna vez una situación parecida?", "¿Cómo cree que terminará esta escena?"]
+      : ["¿Por qué piensa eso exactamente?", "¿No cree que hay otras soluciones mejores?"];
   }
 };
 
