@@ -64,7 +64,12 @@ export const ExamSession: React.FC = () => {
       const finalTranscript = recorder.transcript;
       setMonologueTranscript(finalTranscript);
 
-      const questions = await generateExaminerQuestions(task!.promptText, finalTranscript, task!.examinerNotes);
+      const questions = await generateExaminerQuestions(
+          task!.promptText, 
+          finalTranscript, 
+          task!.examinerNotes,
+          task!.type // Pass task type to determine question strategy
+      );
       setFollowUpQuestions(questions);
       setIsProcessing(false);
       setState('interaction');
@@ -235,7 +240,7 @@ export const ExamSession: React.FC = () => {
                   <p className="font-bold text-gray-700 mb-2 sticky top-0 bg-gray-50 pb-2 border-b">Topics (Propuestas):</p>
                   <div className="space-y-3">
                     {task.promptPoints.map((p, i) => (
-                      <div key={i} className="text-sm text-gray-600 pl-2 border-l-2 border-gray-300">
+                      <div key={i} className="text-sm text-gray-600 pl-2 border-l-2 border-gray-300 block">
                         {p}
                       </div>
                     ))}

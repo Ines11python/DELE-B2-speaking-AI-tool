@@ -48,6 +48,11 @@ export interface FeedbackResult {
     correction: string;
     explanation: string;
   }[];
+  modelMonologue?: string; // Model answer for the main task (Description/Opinion/Comparison)
+  modelAnswers?: {
+    question: string;
+    answer: string;
+  }[];
   error?: string;
 }
 

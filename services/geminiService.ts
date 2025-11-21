@@ -28,14 +28,35 @@ async function retryOperation<T>(
 export const generateExaminerQuestions = async (
   taskPrompt: string,
   userMonologue: string,
-  examinerNotes?: string
+  examinerNotes?: string,
+  taskType?: string
 ): Promise<string[]> => {
   const ai = getAI();
   
+  let specificInstruction = "";
+  
+  if (taskType === 'TAREA_2') {
+      // Specific logic for Tarea 2 (Photo Description)
+      specificInstruction = `
+      The task is DELE B2 Tarea 2 (Photo Description).
+      Your goal is to ask 2-3 follow-up questions based on the photo context and the user's monologue.
+      
+      CRITICAL RULES FOR TAREA 2 QUESTIONS:
+      1. ONE question MUST be about the candidate's PERSONAL EXPERIENCE related to the situation in the photo (e.g., "¿Ha vivido alguna vez una situación como la de la foto?", "¿Qué haría usted en esa situación?").
+      2. The other questions should ask for specific details about the feelings, atmosphere, or future outcome of the scene in the photo.
+      3. Do NOT ask abstract advantages/disadvantages questions (that is for Tarea 1).
+      `;
+  } else {
+      // Default/Tarea 1 logic (Debate/Opinion)
+      specificInstruction = `
+      The task is DELE B2 Tarea 1 (Argumentation/Opinion).
+      The questions should challenge the candidate's opinion expressed in the monologue or ask for clarification on specific points.
+      `;
+  }
+
   const systemInstruction = `You are a strict DELE B2 Spanish examiner. 
-  The user has just completed a monologue based on a specific task.
-  Your goal is to ask 2-3 follow-up questions (preguntas de interacción) based on what they said and the official examiner guidelines.
-  The questions should challenge their opinion or ask for clarification.
+  The user has just completed a monologue.
+  ${specificInstruction}
   Return ONLY the questions in Spanish as a JSON array of strings.`;
 
   const prompt = `
@@ -61,7 +82,7 @@ export const generateExaminerQuestions = async (
     }));
 
     let text = response.text;
-    if (!text) return ["¿Puede explicar eso con más detalle?", "¿Por qué piensa eso?"];
+    if (!text) return ["¿Ha vivido alguna situación similar?", "¿Qué cree que pasará después?"];
     
     // Clean potential markdown code blocks
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -69,7 +90,7 @@ export const generateExaminerQuestions = async (
     return JSON.parse(text);
   } catch (error) {
     console.error("Error generating questions:", error);
-    return ["¿Podría aclarar su último punto?", "¿Tiene alguna experiencia personal con esto?"];
+    return ["¿Podría explicar eso con más detalle?", "¿Tiene alguna experiencia personal relacionada con esto?"];
   }
 };
 
@@ -82,14 +103,17 @@ export const evaluateSession = async (
   const ai = getAI();
 
   let fullTranscript = "";
+  let modelAnswerContext = "";
   
   if (part2Transcript) {
       // TAREA 3 Structure
       fullTranscript = `PART 1 (SURVEY):\n${monologue}\n\nPART 2 (DATA COMPARISON):\n${part2Transcript}`;
+      modelAnswerContext = "Generate a model response for Part 2 (Data Comparison).";
   } else {
       // TAREA 1 & 2 Structure
       const interactionText = interactions.map((i, idx) => `Examiner: ${i.question}\nCandidate: ${i.answer}`).join('\n');
       fullTranscript = `MONOLOGUE:\n${monologue}\n\nINTERACTION PART:\n${interactionText}`;
+      modelAnswerContext = "Generate a model answer for each examiner question asked in the interaction part.";
   }
 
   const prompt = `
@@ -111,9 +135,24 @@ export const evaluateSession = async (
     4. Léxico (Vocabulary): Range, variety.
     5. Interacción (Interaction): Handling the task/questions. (If Tarea 3, judge on addressing both parts of the prompt).
     ---
+    
+    INSTRUCTIONS FOR CORRECTIONS:
+    - Identify mistakes in the user's speech.
+    - In the 'correction' field, provide the corrected sentence.
+    - IMPORTANT: Wrap the specific words you changed or corrected in **double asterisks** (e.g., "Es **obvio** que hay...").
+    
+    INSTRUCTIONS FOR MODEL ANSWERS (IMPORTANT):
+    1. 'modelMonologue': 
+       - If the user provided a substantial response: Polish their ideas into a high-quality B2/C1 level Spanish response. Improve their vocabulary and structure but keep their sentiment.
+       - If the user's response is empty, very short, or irrelevant: Generate a fresh, perfect example monologue (approx 100-150 words) that fully answers the prompt.
+       - You can use **double asterisks** to highlight advanced vocabulary or key connectors in your model answer.
+    2. 'modelAnswers': 
+       - ${modelAnswerContext}
+       - Follow the same logic: Improve the user's answer if it exists; otherwise, provide an ideal answer.
+       - You can use **double asterisks** for emphasis.
   `;
 
-  // Schema for structured feedback (Same as before)
+  // Schema for structured feedback
   const responseSchema = {
     type: Type.OBJECT,
     properties: {
@@ -142,6 +181,17 @@ export const evaluateSession = async (
             explanation: { type: Type.STRING }
           },
           required: ["original", "correction", "explanation"]
+        }
+      },
+      modelMonologue: { type: Type.STRING },
+      modelAnswers: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            question: { type: Type.STRING },
+            answer: { type: Type.STRING }
+          }
         }
       }
     },
@@ -174,6 +224,8 @@ export const evaluateSession = async (
       strengths: [],
       improvements: [],
       corrections: [],
+      modelMonologue: "",
+      modelAnswers: [],
       error: error.message || "Could not connect to AI service"
     };
   }

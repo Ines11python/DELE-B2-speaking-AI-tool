@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocation, Link, Navigate } from 'react-router-dom';
 import { FeedbackResult, Task } from '../types';
-import { FaCheckCircle, FaExclamationTriangle, FaLightbulb, FaRedo, FaExclamationCircle } from 'react-icons/fa';
+import { FaCheckCircle, FaExclamationTriangle, FaLightbulb, FaRedo, FaExclamationCircle, FaCommentDots, FaQuoteRight } from 'react-icons/fa';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 
 export const FeedbackReport: React.FC = () => {
@@ -50,6 +50,25 @@ export const FeedbackReport: React.FC = () => {
 
   // DELE B2 Pass mark is typically 60% overall, but per user request: "Over half is pass" (15/30)
   const isPass = result.totalScore >= 15;
+
+  // Helper to render text with **bold** highlights
+  const renderWithHighlights = (text: string) => {
+    if (!text) return null;
+    // Split by bold markers
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        // Strip asterisks and render emphasized span
+        const content = part.slice(2, -2);
+        return (
+          <span key={i} className="font-bold text-green-700 border-2 border-dashed border-green-500 px-1 rounded mx-0.5 bg-green-50/50">
+            {content}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
 
   return (
     <div className="space-y-8 pb-12">
@@ -134,7 +153,9 @@ export const FeedbackReport: React.FC = () => {
                   <div className="hidden md:block text-gray-300">➜</div>
                   <div className="flex-1">
                     <p className="text-xs uppercase text-green-600 font-bold mb-1">Better:</p>
-                    <p className="text-gray-900 font-medium">"{c.correction}"</p>
+                    <div className="text-gray-900 font-medium">
+                      {renderWithHighlights(c.correction)}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-500">
@@ -147,6 +168,39 @@ export const FeedbackReport: React.FC = () => {
             )}
           </div>
         </div>
+        
+        {/* Model Monologue / Description Section */}
+        {result.modelMonologue && (
+          <div className="p-8 bg-white border-t border-gray-200">
+             <h3 className="flex items-center text-gray-800 font-bold mb-6 text-xl">
+                <FaQuoteRight className="text-purple-500 mr-2" /> 
+                {task.type === 'TAREA_2' ? 'Model Photo Description' : 'Model Response (Monologue)'}
+             </h3>
+             <div className="bg-purple-50 p-6 rounded-xl border border-purple-100 text-gray-800 italic leading-relaxed">
+                "{renderWithHighlights(result.modelMonologue)}"
+             </div>
+          </div>
+        )}
+
+        {/* Model Answers for Questions Section */}
+        {result.modelAnswers && result.modelAnswers.length > 0 && (
+          <div className="p-8 bg-white border-t border-gray-200">
+            <h3 className="flex items-center text-gray-800 font-bold mb-6 text-xl">
+              <FaCommentDots className="text-blue-500 mr-2" /> Model Interaction Answers
+            </h3>
+            <div className="space-y-6">
+              {result.modelAnswers.map((qa, idx) => (
+                <div key={idx} className="bg-blue-50 p-5 rounded-xl border border-blue-100">
+                  <p className="text-sm font-bold text-blue-800 mb-2">Q: {qa.question}</p>
+                  <p className="text-gray-800 italic border-l-4 border-blue-400 pl-3">
+                    "{renderWithHighlights(qa.answer)}"
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
 
       <div className="flex justify-center space-x-4">
