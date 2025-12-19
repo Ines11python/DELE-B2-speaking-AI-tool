@@ -10,10 +10,20 @@ const getAI = () => {
   return new GoogleGenAI({ apiKey });
 };
 
+// 增加一个带有超时的包装器
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout")), timeoutMs)
+    ),
+  ]);
+}
+
 async function retryOperation<T>(
   operation: () => Promise<T>, 
-  retries = 2, 
-  delay = 1500
+  retries = 1, // 减少重试次数，避免用户等待过久
+  delay = 1000
 ): Promise<T> {
   try {
     return await operation();
@@ -44,32 +54,34 @@ export const generateExaminerQuestions = async (
   `;
 
   try {
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: [{ parts: [{ text: prompt }] }],
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
+    // 强制 10 秒超时，如果 API 没反应，直接进入 catch 走兜底逻辑
+    const response = await withTimeout(
+      retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+          }
         }
-      }
-    }));
+      })),
+      10000 
+    );
 
     const text = response.text;
     if (!text) throw new Error("Empty response");
     
     const questions = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-    return Array.isArray(questions) && questions.length > 0 ? questions : throwError();
+    return Array.isArray(questions) && questions.length > 0 ? questions : ["¿Por qué piensa eso?", "¿Qué más puede añadir?"];
   } catch (error) {
-    console.error("Examiner Generation Error:", error);
+    console.warn("Using fallback questions due to error or timeout:", error);
     return taskType === 'TAREA_2' 
       ? ["¿Ha vivido alguna vez una situación parecida?", "¿Cómo cree que terminará esta escena?"]
       : ["¿Por qué piensa eso exactamente?", "¿No cree que hay otras soluciones mejores para este problema?"];
   }
 };
-
-function throwError(): never { throw new Error("Invalid output format"); }
 
 export const evaluateSession = async (
   taskPrompt: string,
@@ -147,7 +159,7 @@ export const evaluateSession = async (
       strengths: [],
       improvements: [],
       corrections: [],
-      error: "Error en la evaluación de IA."
+      error: "Error en la evaluación de IA: " + error.message
     };
   }
 };

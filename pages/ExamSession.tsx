@@ -6,7 +6,7 @@ import { Task, ExamState } from '../types';
 import { CountdownTimer } from '../components/CountdownTimer';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { generateExaminerQuestions, evaluateSession } from '../services/geminiService';
-import { FaMicrophone, FaStop, FaBrain, FaUserTie, FaImage, FaFileAlt } from 'react-icons/fa';
+import { FaMicrophone, FaStop, FaBrain, FaUserTie, FaImage } from 'react-icons/fa';
 
 export const ExamSession: React.FC = () => {
   const { taskId } = useParams<{ taskId: string }>();
@@ -39,8 +39,9 @@ export const ExamSession: React.FC = () => {
 
   const finishMonologue = async () => {
     recorder.stopRecording();
-    // 等待一小会儿确保录音转录完成
-    await new Promise(r => setTimeout(r, 1000));
+    
+    // 给 Speech API 一点时间处理缓冲区
+    await new Promise(r => setTimeout(r, 1200));
     
     const finalTranscript = recorder.transcript.trim();
     setMonologueTranscript(finalTranscript);
@@ -57,7 +58,7 @@ export const ExamSession: React.FC = () => {
     try {
       const questions = await generateExaminerQuestions(
           task!.promptText, 
-          finalTranscript || "El candidato no habló.", 
+          finalTranscript || "No se detectó audio.", 
           task!.examinerNotes,
           task!.type
       );
@@ -67,7 +68,6 @@ export const ExamSession: React.FC = () => {
       setCurrentQIndex(0);
     } catch (e) {
       console.error("Monologue analysis failed:", e);
-      // 强制兜底，避免卡在“思考中”
       const fallback = task!.type === 'TAREA_2' 
         ? ["¿Ha vivido una situación similar?", "¿Qué pasará después?"]
         : ["¿Por qué piensa así?", "¿No cree que hay otras opciones?"];
@@ -81,7 +81,7 @@ export const ExamSession: React.FC = () => {
 
   const finishPart2 = async () => {
       recorder.stopRecording();
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 1200));
       const transcript = recorder.transcript.trim();
       setPart2Transcript(transcript);
       handleGrading(monologueTranscript, transcript, []);
